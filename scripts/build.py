@@ -30,6 +30,7 @@ import math
 import re
 import shutil
 import sys
+import urllib.parse
 from collections import OrderedDict
 from pathlib import Path
 
@@ -42,7 +43,11 @@ SIZES = [150, 300, 600, 1200]  # widths of pre-rendered full-image sizes
 QUALITY = 85
 FILENAME_RE = re.compile(r"^(?P<label>.+?)\s*\((?P<id>[^)]+)\)$")
 IMAGE_EXTS = {".tif", ".tiff", ".jpg", ".jpeg", ".png"}
-VIEWER = "https://projectmirador.org/embed/?iiif-content="
+VIEWERS = [  # (name, URL prefix that takes the manifest URL)
+    ("Mirador", "https://projectmirador.org/embed/?iiif-content="),
+    ("Clover", "https://clover.iiif.library.northwestern.edu/?iiif-content="),
+    ("Theseus", "https://theseusviewer.org/?iiif-content="),
+]
 FIELDS = [  # (metadata.tsv column, display label)
     ("category", "Category"),
     ("STATE", "State"),
@@ -277,18 +282,21 @@ def link(href, text):
     return f"<a href='{html.escape(href)}'>{html.escape(text)}</a>"
 
 
-def viewer_link(base, rel):
-    return link(VIEWER + f"{base}/{rel}", "Mirador")
+def viewer_link(base, rel, viewers=None):
+    """Links that open {base}/{rel} in each viewer (all viewers unless named)."""
+    url = urllib.parse.quote(f"{base}/{rel}", safe="")
+    return " &middot; ".join(link(prefix + url, name) for name, prefix in VIEWERS
+                             if viewers is None or name in viewers)
 
 
-def write_index(out: Path, base: str, cats, edifice_files, image_files, missing):
+def write_index(out: Path, base: str, cats, edifice_files, image_files):
     parts = []
     for cat, edifices in cats.items():
         parts.append(
             f"<h2>{html.escape(cat)}</h2><p class='links'>"
             f"{link(f'manifests/categories/{slug(cat)}.json', 'category manifest')} &middot; "
-            f"{link(f'collections/{slug(cat)}.json', 'collection')} &middot; "
-            f"{viewer_link(base, f'manifests/categories/{slug(cat)}.json')}</p>"
+            f"{viewer_link(base, f'manifests/categories/{slug(cat)}.json')} &middot; "
+            f"{link(f'collections/{slug(cat)}.json', 'collection')}</p>"
         )
         for key, recs in edifices.items():
             ef = edifice_files[key]
@@ -307,10 +315,6 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files, missing)
                     f"{viewer_link(base, imf)}</div></li>"
                 )
             parts.append("</ul></section>")
-    if missing:
-        parts.append("<h2>Listed in metadata without an image</h2><ul class='plain'>")
-        parts += [f"<li><code>{html.escape(k)}</code> {html.escape(v)}</li>" for k, v in missing]
-        parts.append("</ul>")
 
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -318,14 +322,13 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files, missing)
 <style>
 body{{font:15px/1.5 system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 16px;color:#222;background:#fff}}
 h2{{margin-top:2.5rem;border-bottom:2px solid #222}} h3{{margin-bottom:0}} .links{{margin-top:.25rem}}
-ul{{list-style:none;padding:0;display:grid;gap:10px}} ul.plain{{display:block}}
+ul{{list-style:none;padding:0;display:grid;gap:10px}}
 li{{display:flex;gap:12px;align-items:center;border:1px solid #ddd;border-radius:6px;padding:8px}}
-ul.plain li{{border:0;padding:2px 0;display:block}}
 img{{width:150px;height:auto;flex:none;background:#eee}} code{{font-size:13px}}
 </style></head><body>
 <h1>IIIF Level 0 Images</h1>
 <p>Static IIIF Image API 3.0 (level 0) images with Presentation 3.0 manifests.</p>
-<p>{link('collection.json', 'Top-level collection')} &middot; {viewer_link(base, 'collection.json')}<br>
+<p>{link('collection.json', 'Top-level collection')} &middot; {viewer_link(base, 'collection.json', ['Mirador'])}<br>
 {link('manifests/all.json', 'Manifest of every image')} &middot; {viewer_link(base, 'manifests/all.json')}</p>
 {chr(10).join(parts)}
 </body></html>
@@ -433,7 +436,7 @@ def main():
     write_json(args.out / "collection.json",
                collection(f"{base}/collection.json", args.label, cat_collections + [all_m]))
 
-    write_index(args.out, base, cats, edifice_files, image_files, missing)
+    write_index(args.out, base, cats, edifice_files, image_files)
     (args.out / ".nojekyll").touch()
     n_ed = sum(len(e) for e in cats.values())
     print(f"Built {len(recs)} images, {len(recs)} image manifests, {n_ed} edifice manifests, "
