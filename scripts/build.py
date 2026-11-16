@@ -278,59 +278,84 @@ def write_json(path: Path, obj):
 
 # ---------------------------------------------------------------- index page
 
-def link(href, text):
-    return f"<a href='{html.escape(href)}'>{html.escape(text)}</a>"
+def link(href, text, cls=None):
+    c = f" class='{cls}'" if cls else ""
+    return f"<a{c} href='{html.escape(href)}'>{html.escape(text)}</a>"
 
 
-def viewer_link(base, rel, viewers=None):
+def viewer_links(base, rel, viewers=None, cls="cta-link-trailing"):
     """Links that open {base}/{rel} in each viewer (all viewers unless named)."""
     url = urllib.parse.quote(f"{base}/{rel}", safe="")
-    return " &middot; ".join(link(prefix + url, name) for name, prefix in VIEWERS
-                             if viewers is None or name in viewers)
+    return "".join(link(prefix + url, name, cls) for name, prefix in VIEWERS
+                   if viewers is None or name in viewers)
+
+
+def link_row(label, *links):
+    return f"<p class='link-row'><span class='label'>{html.escape(label)}</span>{''.join(links)}</p>"
 
 
 def write_index(out: Path, base: str, cats, edifice_files, image_files):
     parts = []
     for cat, edifices in cats.items():
+        cm = f"manifests/categories/{slug(cat)}.json"
+        n = sum(len(rs) for rs in edifices.values())
         parts.append(
-            f"<h2>{html.escape(cat)}</h2><p class='links'>"
-            f"{link(f'manifests/categories/{slug(cat)}.json', 'category manifest')} &middot; "
-            f"{viewer_link(base, f'manifests/categories/{slug(cat)}.json')} &middot; "
-            f"{link(f'collections/{slug(cat)}.json', 'collection')}</p>"
+            f"<section aria-labelledby='cat-{slug(cat)}'>"
+            f"<h2 id='cat-{slug(cat)}'>{html.escape(cat)}</h2><hr class='divider'>"
+            f"<p>{n} images of {len(edifices)} edifices.</p>"
+            + link_row("Category manifest", link(cm, "JSON"), viewer_links(base, cm))
+            + link_row("Collection", link(f"collections/{slug(cat)}.json", "JSON"))
         )
         for key, recs in edifices.items():
             ef = edifice_files[key]
             parts.append(
-                f"<section><h3>{html.escape(recs[0]['edifice'])}</h3><p class='links'><code>{html.escape(key)}</code> &middot; "
-                f"{link(ef, 'edifice manifest')} &middot; {viewer_link(base, ef)}</p><ul>"
+                f"<section aria-labelledby='ed-{key}'><h3 id='ed-{key}'>{html.escape(recs[0]['edifice'])}</h3>"
+                + link_row("Edifice manifest", f"<code>{html.escape(key)}</code>", link(ef, "JSON"), viewer_links(base, ef))
+                + "<ul class='tamu-cards-grid'>"
             )
             for r in recs:
-                s = r["sizes"][0]
+                s = next((s for s in r["sizes"] if s["width"] >= 300), r["sizes"][-1])
                 imf = image_files[r["id"]]
                 parts.append(
-                    f"<li><img src='iiif/{r['id']}/full/{s['width']},{s['height']}/0/default.jpg' alt='' loading='lazy'>"
-                    f"<div><strong>{html.escape(r['view'])}</strong><br>"
-                    f"<code>{html.escape(r['key'])}</code> &middot; <code>{html.escape(r['id'])}</code><br>"
-                    f"{link(f'iiif/{r['id']}/info.json', 'info.json')} &middot; {link(imf, 'manifest')} &middot; "
-                    f"{viewer_link(base, imf)}</div></li>"
+                    "<li class='tamu-card'>"
+                    f"<div class='tamu-card__image'><img src='iiif/{r['id']}/full/{s['width']},{s['height']}/0/default.jpg' "
+                    f"width='{s['width']}' height='{s['height']}' alt='{html.escape(r['edifice'])}: {html.escape(r['view'])}' loading='lazy'></div>"
+                    "<div class='tamu-card__body'>"
+                    f"<h4 class='tamu-card__title'>{html.escape(r['view'])}</h4>"
+                    f"<p class='tamu-card__description'><code>{html.escape(r['key'])}</code> <code>{html.escape(r['id'])}</code> "
+                    f"&middot; {r['width']}&times;{r['height']}</p>"
+                    + link_row("Data", link(imf, "Manifest"), link(f"iiif/{r['id']}/info.json", "info.json"))
+                    + link_row("Open in", viewer_links(base, imf))
+                    + "</div></li>"
                 )
             parts.append("</ul></section>")
+        parts.append("</section>")
 
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>IIIF Level 0 Images</title>
-<style>
-body{{font:15px/1.5 system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 16px;color:#222;background:#fff}}
-h2{{margin-top:2.5rem;border-bottom:2px solid #222}} h3{{margin-bottom:0}} .links{{margin-top:.25rem}}
-ul{{list-style:none;padding:0;display:grid;gap:10px}}
-li{{display:flex;gap:12px;align-items:center;border:1px solid #ddd;border-radius:6px;padding:8px}}
-img{{width:150px;height:auto;flex:none;background:#eee}} code{{font-size:13px}}
-</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400&family=Oswald:wght@400;500&family=Work+Sans:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="static/site.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="top-bar"><div class="wrap">IIIF Image API 3.0 &middot; Level 0</div></div>
+<header class="site-header"><div class="wrap">
 <h1>IIIF Level 0 Images</h1>
-<p>Static IIIF Image API 3.0 (level 0) images with Presentation 3.0 manifests.</p>
-<p>{link('collection.json', 'Top-level collection')} &middot; {viewer_link(base, 'collection.json', ['Mirador'])}<br>
-{link('manifests/all.json', 'Manifest of every image')} &middot; {viewer_link(base, 'manifests/all.json')}</p>
+<p>Static IIIF Image API 3.0 (level 0) images with Presentation 3.0 manifests for each image, edifice and category.</p>
+<div class="actions">
+{link('manifests/all.json', 'Manifest of every image', 'button')}
+{link('collection.json', 'Top-level collection', 'primary-button-alt')}
+</div>
+{link_row('Open every image in', viewer_links(base, 'manifests/all.json', cls=None))}
+</div></header>
+<main id="main" class="wrap">
 {chr(10).join(parts)}
+</main>
+<footer class="site-footer"><div class="wrap">
+Images served as a static IIIF level 0 service. {link('collection.json', 'collection.json')}
+</div></footer>
 </body></html>
 """
     (out / "index.html").write_text(page)
@@ -437,6 +462,9 @@ def main():
                collection(f"{base}/collection.json", args.label, cat_collections + [all_m]))
 
     write_index(args.out, base, cats, edifice_files, image_files)
+    static = Path(__file__).resolve().parent.parent / "static"
+    if static.is_dir():
+        shutil.copytree(static, args.out / "static")
     (args.out / ".nojekyll").touch()
     n_ed = sum(len(e) for e in cats.values())
     print(f"Built {len(recs)} images, {len(recs)} image manifests, {n_ed} edifice manifests, "

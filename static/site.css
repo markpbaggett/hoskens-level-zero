@@ -1,0 +1,241 @@
+/* Aggie UX (AUX) tokens. Defined locally (as slim.css would) so the page never
+   depends on the AUX CDN; structural colors also carry fallbacks. */
+:root {
+  --primary-brand: #500000;
+  --primary-brand-dark: #3c0000;
+  --primary-brand-light: #732f2f;
+  --ivory: #e9e4dc;
+  --cream: #d6d3c4;
+  --white: #ffffff;
+  --black: #000000;
+  --gold: #af8846;
+  --gray-100: #f6f6f6;
+  --gray-200: #eaeaea;
+  --gray-300: #d1d1d1;
+  --gray-500: #707070;
+  --gray-700: #3e3e3e;
+  --gray-800: #2b2b2b;
+  --link: var(--primary-brand);
+  --link-hover: var(--primary-brand-light);
+  --link-on-dark: var(--white);
+  --link-on-dark-hover: var(--cream);
+  --work-sans: "Work Sans", Arial, sans-serif;
+  --open-sans: "Open Sans", Arial, sans-serif;
+  --oswald: "Oswald", Arial, sans-serif;
+  --gutter: .75rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--open-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--black);
+  background: var(--white);
+}
+
+a { color: var(--link); text-underline-offset: .15em; }
+a:hover { color: var(--link-hover); }
+:focus-visible { outline: dotted var(--gold) 2px; outline-offset: 3px; }
+
+code {
+  font-size: .8125rem;
+  background: var(--gray-100);
+  padding: .05rem .3rem;
+  color: var(--gray-800);
+}
+
+/* ---- skip link ---- */
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  padding: .5rem 1rem;
+  background: var(--primary-brand, #500000);
+  color: var(--white);
+  font-family: var(--work-sans);
+  font-weight: 600;
+  z-index: 10;
+}
+.skip-link:focus { top: 1rem; color: var(--white); }
+
+/* ---- header / footer ---- */
+.top-bar {
+  background: var(--primary-brand-dark, #3c0000);
+  color: var(--white);
+  font-family: var(--work-sans);
+  font-size: .875rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: .5rem 0;
+}
+.site-header {
+  background: var(--primary-brand, #500000);
+  color: var(--white);
+  padding: 2.5rem 0 2rem;
+}
+.site-header h1 { color: var(--white); margin: 0 0 .5rem; }
+.site-header p { margin: 0 0 1.5rem; max-width: 46rem; color: var(--ivory); }
+.site-header .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+.site-header .link-row { margin: 0; }
+.site-header .link-row .label { color: var(--ivory); }
+
+.site-footer {
+  margin-top: 4rem;
+  background: var(--primary-brand-dark, #3c0000);
+  color: var(--white);
+  padding: 1.5rem 0;
+  font-size: .875rem;
+}
+.site-footer a, .site-header a:not(.button) { color: var(--link-on-dark); }
+.site-footer a:hover, .site-header a:not(.button):hover { color: var(--link-on-dark-hover); }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+
+/* ---- typography ---- */
+h1 {
+  font-family: var(--oswald);
+  font-weight: 400;
+  font-size: 3.25rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--primary-brand);
+}
+h2 {
+  font-family: var(--oswald);
+  font-weight: 400;
+  font-size: 2rem;
+  line-height: 1.2;
+  color: var(--primary-brand);
+  margin: 3.5rem 0 .25rem;
+}
+h3 {
+  font-family: var(--work-sans);
+  font-weight: 600;
+  font-size: 1.6rem;
+  line-height: 1.25;
+  color: var(--primary-brand-light);
+  margin: 2.5rem 0 .25rem;
+}
+@media (max-width: 576px) {
+  h1 { font-size: 2.25rem; }
+  h2 { font-size: 1.6rem; }
+  h3 { font-size: 1.3rem; }
+}
+
+.divider {
+  border: 0;
+  height: 4px;
+  margin: .75rem 0 1rem;
+  background: repeating-linear-gradient(-55deg, var(--primary-brand) 0 2px, transparent 2px 6px);
+  width: 6rem;
+}
+
+/* ---- buttons ---- */
+.button, .primary-button-alt {
+  display: inline-block;
+  font-family: var(--work-sans);
+  font-weight: 600;
+  font-size: .875rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: .6rem 1.1rem;
+  border-radius: 0;
+  border: 2px solid var(--primary-brand-dark, #3c0000);
+  background: var(--primary-brand, #500000);
+  color: var(--white);
+}
+.button:hover { background: var(--primary-brand-light, #732f2f); color: var(--white); }
+.primary-button-alt { background: transparent; color: var(--primary-brand); border-color: var(--primary-brand); }
+.primary-button-alt:hover { background: var(--primary-brand); color: var(--white); }
+/* on the maroon header */
+.site-header .button { background: var(--white); color: var(--primary-brand); border-color: var(--white); }
+.site-header .button:hover { background: var(--cream); border-color: var(--cream); color: var(--primary-brand-dark); }
+.site-header .primary-button-alt { color: var(--white); border-color: var(--white); }
+.site-header .primary-button-alt:hover { background: var(--white); color: var(--primary-brand); }
+
+/* ---- link rows ---- */
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .75rem;
+  margin: 0 0 1rem;
+  font-size: .9375rem;
+}
+.link-row .label {
+  font-family: var(--work-sans);
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--gray-700);
+}
+.cta-link-trailing {
+  font-family: var(--work-sans);
+  font-weight: 600;
+  text-decoration: none;
+}
+.cta-link-trailing::after { content: " \203A"; }
+.cta-link-trailing:hover { text-decoration: underline; }
+
+/* ---- cards ---- */
+.tamu-cards-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+.tamu-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.tamu-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--primary-brand, #500000);
+  z-index: 1;
+}
+.tamu-card:hover, .tamu-card:focus-within {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .12);
+}
+.tamu-card__image { overflow: hidden; aspect-ratio: 3 / 2; background: var(--gray-200); }
+.tamu-card__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .3s ease;
+}
+.tamu-card:hover .tamu-card__image img { transform: scale(1.04); }
+.tamu-card__body { padding: 1rem 1rem 1.1rem; display: flex; flex-direction: column; gap: .5rem; flex: 1; }
+.tamu-card__title {
+  font-family: var(--work-sans);
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.3;
+  color: var(--primary-brand);
+  margin: 0;
+}
+.tamu-card__description { margin: 0; font-size: .875rem; color: var(--gray-700); }
+.tamu-card .link-row { margin: 0; font-size: .875rem; }
+.tamu-card .link-row:last-child { margin-top: auto; padding-top: .5rem; border-top: 1px solid var(--gray-200); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tamu-card, .tamu-card__image img { transition: none; }
+  .tamu-card:hover, .tamu-card:focus-within { transform: none; }
+  .tamu-card:hover .tamu-card__image img { transform: none; }
+}
