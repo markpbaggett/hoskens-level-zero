@@ -7,7 +7,8 @@ Usage:
 Inputs:
     source/                 images named "{identifier} ({image id}).tif",
                             e.g. "1_4_1_1_f (SC01_17_01_002).tif"
-    metadata.tsv            one row per identifier: LIST, category, STATE, CITY, EDIFICE, VIEW, identifier
+    metadata.tsv            one row per identifier: LIST, category, STATE, CITY, EDIFICE, VIEW, identifier,
+                            photographer
     geo/{group}.geojson     optional places for an edifice (e.g. geo/1_4_1_7.geojson): a GeoJSON
                             geometry, Feature or FeatureCollection, written as IIIF navPlace
     image-map.tsv           optional overrides: image_id <TAB> identifier, for scans whose
@@ -58,6 +59,7 @@ FIELDS = [  # (metadata.tsv column, display label)
     ("CITY", "City"),
     ("EDIFICE", "Edifice"),
     ("VIEW", "View"),
+    ("photographer", "Photographer"),
     ("identifier", "Identifier"),
     ("LIST", "List"),
 ]
@@ -712,7 +714,8 @@ def main():
         write_json(args.out / rel, c)
         cat_collections.append(c)
 
-    all_m = manifest(base, f"{base}/manifests/all.json", args.label, recs, summary=f"{len(recs)} images")
+    all_m = manifest(base, f"{base}/manifests/all.json", args.label, recs, metadata=shared_metadata(recs),
+                     summary=f"{len(recs)} images")
     write_json(args.out / "manifests/all.json", all_m)
     write_json(args.out / "collection.json",
                collection(f"{base}/collection.json", args.label, cat_collections + [all_m]))
