@@ -21,6 +21,7 @@ Output (all URLs relative to --base-url):
     collection.json                              top-level Collection
     index.html                                   browsable listing
     items/{image id}/index.html                  landing page with an embedded Clover viewer
+    edifices/{group}/index.html                  edifice page, Clover showing the edifice manifest
 """
 
 import argparse
@@ -365,7 +366,7 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
         for key, recs in edifices.items():
             ef = edifice_files[key]
             parts.append(
-                f"<section aria-labelledby='ed-{key}'><h3 id='ed-{key}'>{esc(recs[0]['edifice'])}</h3>"
+                f"<section aria-labelledby='ed-{key}'><h3 id='ed-{key}'>{link(edifice_href(key), recs[0]['edifice'])}</h3>"
                 + link_row("Edifice manifest", f"<code>{esc(key)}</code>", link(ef, "JSON"), viewer_links(base, ef))
                 + "<ul class='tamu-cards-grid'>"
                 + "".join(card(r, "", image_files, base) for r in recs)
@@ -383,6 +384,55 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
 {link_row('Open every image in', viewer_links(base, 'manifests/all.json', cls=None))}
 </div></header>"""
     (out / "index.html").write_text(page_shell("IIIF Level 0 Images", "", header, "\n".join(parts)))
+
+
+def edifice_href(key):
+    return f"edifices/{key}/"
+
+
+def write_edifice_pages(out: Path, base: str, cats, edifice_files, image_files):
+    """One landing page per edifice at edifices/{group}/ with Clover showing the edifice manifest."""
+    root = "../../"
+    for cat, edifices in cats.items():
+        cm = f"manifests/categories/{slug(cat)}.json"
+        for key, recs in edifices.items():
+            ef = edifice_files[key]
+            first = recs[0]["row"]
+            rows = "".join(
+                f"<dt>{esc(label)}</dt><dd>{esc(first[col])}</dd>"
+                for col, label in FIELDS
+                if col not in ("VIEW", "identifier") and first.get(col)
+                and all(r["row"].get(col) == first[col] for r in recs)
+            ) + (f"<dt>Group</dt><dd>{esc(key)}</dd>"
+                 f"<dt>Images</dt><dd>{len(recs)}</dd>")
+            n = f"{len(recs)} image{'s' * (len(recs) != 1)}"
+
+            header = f"""<header class="site-header site-header--compact"><div class="wrap">
+<nav class="breadcrumb" aria-label="Breadcrumb"><ol>
+<li>{link(root, 'Home')}</li>
+<li>{link(f'{root}#cat-{slug(cat)}', cat)}</li>
+</ol></nav>
+<h1>{esc(recs[0]['edifice'])}</h1>
+<p>{esc(cat)} &middot; {n}</p>
+</div></header>"""
+            body = f"""<div class="item-viewer">
+<clover-viewer iiif-content="{esc(f'{base}/{ef}')}"></clover-viewer>
+</div>
+<div class="item-details">
+<section aria-labelledby="about"><h2 id="about">About this edifice</h2><hr class="divider">
+<dl class="metadata">{rows}</dl></section>
+<section aria-labelledby="iiif"><h2 id="iiif">IIIF</h2><hr class="divider">
+{link_row('Edifice manifest', link(root + ef, 'JSON'), viewer_links(base, ef))}
+{link_row('Category manifest', link(root + cm, 'JSON'), viewer_links(base, cm))}
+</section>
+</div>
+<section aria-labelledby="images"><h2 id="images">Images</h2><hr class="divider">
+<ul class="tamu-cards-grid">{''.join(card(r, root, image_files, base, 'h3') for r in recs)}</ul></section>
+"""
+            dest = out / "edifices" / key / "index.html"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(page_shell(recs[0]["edifice"], root, header, body,
+                                       f'<script src="{CLOVER_JS}"></script>\n'))
 
 
 def write_item_pages(out: Path, base: str, cats, edifice_files, image_files):
@@ -408,7 +458,7 @@ def write_item_pages(out: Path, base: str, cats, edifice_files, image_files):
 <nav class="breadcrumb" aria-label="Breadcrumb"><ol>
 <li>{link(root, 'Home')}</li>
 <li>{link(f'{root}#cat-{slug(cat)}', cat)}</li>
-<li>{link(f'{root}#ed-{key}', r['edifice'])}</li>
+<li>{link(root + edifice_href(key), r['edifice'])}</li>
 </ol></nav>
 <h1>{esc(r['view'])}</h1>
 <p>{esc(r['edifice'])}</p>
@@ -422,7 +472,7 @@ def write_item_pages(out: Path, base: str, cats, edifice_files, image_files):
 <dl class="metadata">{rows}</dl></section>
 <section aria-labelledby="iiif"><h2 id="iiif">IIIF</h2><hr class="divider">
 {link_row('Image manifest', link(root + imf, 'JSON'), viewer_links(base, imf))}
-{link_row('Edifice manifest', link(root + ef, 'JSON'), viewer_links(base, ef))}
+{link_row('Edifice', link(root + edifice_href(key), 'Page'), link(root + ef, 'Manifest'), viewer_links(base, ef))}
 {link_row('Image service', link(f"{root}iiif/{r['id']}/info.json", 'info.json'), link(f"{root}iiif/{r['id']}/full/max/0/default.jpg", 'Full-size JPEG'))}
 </section>
 </div>
@@ -539,6 +589,7 @@ def main():
 
     write_index(args.out, base, cats, edifice_files, image_files)
     write_item_pages(args.out, base, cats, edifice_files, image_files)
+    write_edifice_pages(args.out, base, cats, edifice_files, image_files)
     static = Path(__file__).resolve().parent.parent / "static"
     if static.is_dir():
         shutil.copytree(static, args.out / "static")
