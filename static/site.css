@@ -239,3 +239,55 @@ h3 {
   .tamu-card:hover, .tamu-card:focus-within { transform: none; }
   .tamu-card:hover .tamu-card__image img { transform: none; }
 }
+
+/* ---- card links ---- */
+.tamu-card__image { display: block; }
+.tamu-card__title a { color: inherit; text-decoration: none; }
+.tamu-card__title a:hover { text-decoration: underline; }
+
+/* ---- item landing pages ---- */
+.site-header--compact { padding: 1.25rem 0 1.75rem; }
+.site-header--compact h1 { font-size: 2.5rem; margin: .25rem 0; }
+.site-header--compact p { margin: 0; font-family: var(--work-sans); font-weight: 600; }
+@media (max-width: 576px) { .site-header--compact h1 { font-size: 1.8rem; } }
+
+.top-bar a { color: var(--link-on-dark); text-decoration: none; }
+.top-bar a:hover { color: var(--link-on-dark-hover); text-decoration: underline; }
+
+.breadcrumb ol { list-style: none; padding: 0; margin: 0 0 .75rem; display: flex; flex-wrap: wrap; gap: .25rem; font-size: .875rem; }
+.breadcrumb li + li::before { content: "\203A"; margin-right: .35rem; color: var(--cream); }
+.breadcrumb a { color: var(--link-on-dark); }
+.breadcrumb a:hover { color: var(--link-on-dark-hover); }
+
+.item-viewer {
+  margin: 2rem 0 1rem;
+  border: 1px solid var(--gray-300);
+  border-top: 4px solid var(--primary-brand, #500000);
+  background: var(--white);
+}
+.item-viewer clover-viewer { display: block; min-height: 70vh; }
+
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.5rem; margin: 0 0 1rem; }
+.pager .cta-link-trailing { margin-left: auto; }
+.cta-link-leading { font-family: var(--work-sans); font-weight: 600; text-decoration: none; }
+.cta-link-leading::before { content: "\2039  "; }
+.cta-link-leading:hover { text-decoration: underline; }
+
+.item-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 3rem; }
+.item-details h2, .item-details + section h2 { font-size: 1.6rem; margin-top: 2rem; }
+
+.metadata { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.25rem; margin: 0; }
+.metadata dt {
+  font-family: var(--work-sans);
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--gray-700);
+  padding-top: .2rem;
+}
+.metadata dd { margin: 0; }
+@media (max-width: 576px) {
+  .metadata { grid-template-columns: 1fr; gap: 0; }
+  .metadata dd { margin-bottom: .6rem; }
+}

@@ -20,6 +20,7 @@ Output (all URLs relative to --base-url):
     collections/{slug}.json                      per-category Collection of edifice manifests
     collection.json                              top-level Collection
     index.html                                   browsable listing
+    items/{image id}/index.html                  landing page with an embedded Clover viewer
 """
 
 import argparse
@@ -276,11 +277,20 @@ def write_json(path: Path, obj):
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False))
 
 
-# ---------------------------------------------------------------- index page
+# ---------------------------------------------------------------- HTML pages
+
+CLOVER_JS = "https://cdn.jsdelivr.net/npm/@nulib/clover@4.0.0/dist/web-components/index.umd.js"
+FONTS = ("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400"
+         "&family=Oswald:wght@400;500&family=Work+Sans:wght@400;600;700&display=swap")
+
+
+def esc(s):
+    return html.escape(str(s))
+
 
 def link(href, text, cls=None):
     c = f" class='{cls}'" if cls else ""
-    return f"<a{c} href='{html.escape(href)}'>{html.escape(text)}</a>"
+    return f"<a{c} href='{esc(href)}'>{esc(text)}</a>"
 
 
 def viewer_links(base, rel, viewers=None, cls="cta-link-trailing"):
@@ -291,7 +301,53 @@ def viewer_links(base, rel, viewers=None, cls="cta-link-trailing"):
 
 
 def link_row(label, *links):
-    return f"<p class='link-row'><span class='label'>{html.escape(label)}</span>{''.join(links)}</p>"
+    return f"<p class='link-row'><span class='label'>{esc(label)}</span>{''.join(links)}</p>"
+
+
+def item_href(r):
+    return f"items/{r['id']}/"
+
+
+def card(r, root, image_files, base, heading="h4"):
+    """Image card; thumbnail and title link to the item's landing page."""
+    s = next((s for s in r["sizes"] if s["width"] >= 300), r["sizes"][-1])
+    page = root + item_href(r)
+    imf = image_files[r["id"]]
+    return (
+        "<li class='tamu-card'>"
+        f"<a class='tamu-card__image' href='{esc(page)}' tabindex='-1' aria-hidden='true'>"
+        f"<img src='{root}iiif/{r['id']}/full/{s['width']},{s['height']}/0/default.jpg' "
+        f"width='{s['width']}' height='{s['height']}' alt='' loading='lazy'></a>"
+        "<div class='tamu-card__body'>"
+        f"<{heading} class='tamu-card__title'>{link(page, r['view'])}</{heading}>"
+        f"<p class='tamu-card__description'><code>{esc(r['key'])}</code> <code>{esc(r['id'])}</code> "
+        f"&middot; {r['width']}&times;{r['height']}</p>"
+        + link_row("Data", link(root + imf, "Manifest"), link(f"{root}iiif/{r['id']}/info.json", "info.json"))
+        + link_row("Open in", viewer_links(base, imf))
+        + "</div></li>"
+    )
+
+
+def page_shell(title, root, header, body, head_extra=""):
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="{FONTS}">
+<link rel="stylesheet" href="{root}static/site.css">
+{head_extra}</head><body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="top-bar"><div class="wrap">{link(root or './', 'IIIF Level 0 Images')} &middot; IIIF Image API 3.0 &middot; Level 0</div></div>
+{header}
+<main id="main" class="wrap">
+{body}
+</main>
+<footer class="site-footer"><div class="wrap">
+Images served as a static IIIF level 0 service. {link(root + 'collection.json', 'collection.json')}
+</div></footer>
+</body></html>
+"""
 
 
 def write_index(out: Path, base: str, cats, edifice_files, image_files):
@@ -301,7 +357,7 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
         n = sum(len(rs) for rs in edifices.values())
         parts.append(
             f"<section aria-labelledby='cat-{slug(cat)}'>"
-            f"<h2 id='cat-{slug(cat)}'>{html.escape(cat)}</h2><hr class='divider'>"
+            f"<h2 id='cat-{slug(cat)}'>{esc(cat)}</h2><hr class='divider'>"
             f"<p>{n} images of {len(edifices)} edifices.</p>"
             + link_row("Category manifest", link(cm, "JSON"), viewer_links(base, cm))
             + link_row("Collection", link(f"collections/{slug(cat)}.json", "JSON"))
@@ -309,39 +365,15 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
         for key, recs in edifices.items():
             ef = edifice_files[key]
             parts.append(
-                f"<section aria-labelledby='ed-{key}'><h3 id='ed-{key}'>{html.escape(recs[0]['edifice'])}</h3>"
-                + link_row("Edifice manifest", f"<code>{html.escape(key)}</code>", link(ef, "JSON"), viewer_links(base, ef))
+                f"<section aria-labelledby='ed-{key}'><h3 id='ed-{key}'>{esc(recs[0]['edifice'])}</h3>"
+                + link_row("Edifice manifest", f"<code>{esc(key)}</code>", link(ef, "JSON"), viewer_links(base, ef))
                 + "<ul class='tamu-cards-grid'>"
+                + "".join(card(r, "", image_files, base) for r in recs)
+                + "</ul></section>"
             )
-            for r in recs:
-                s = next((s for s in r["sizes"] if s["width"] >= 300), r["sizes"][-1])
-                imf = image_files[r["id"]]
-                parts.append(
-                    "<li class='tamu-card'>"
-                    f"<div class='tamu-card__image'><img src='iiif/{r['id']}/full/{s['width']},{s['height']}/0/default.jpg' "
-                    f"width='{s['width']}' height='{s['height']}' alt='{html.escape(r['edifice'])}: {html.escape(r['view'])}' loading='lazy'></div>"
-                    "<div class='tamu-card__body'>"
-                    f"<h4 class='tamu-card__title'>{html.escape(r['view'])}</h4>"
-                    f"<p class='tamu-card__description'><code>{html.escape(r['key'])}</code> <code>{html.escape(r['id'])}</code> "
-                    f"&middot; {r['width']}&times;{r['height']}</p>"
-                    + link_row("Data", link(imf, "Manifest"), link(f"iiif/{r['id']}/info.json", "info.json"))
-                    + link_row("Open in", viewer_links(base, imf))
-                    + "</div></li>"
-                )
-            parts.append("</ul></section>")
         parts.append("</section>")
 
-    page = f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>IIIF Level 0 Images</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400&family=Oswald:wght@400;500&family=Work+Sans:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="static/site.css">
-</head><body>
-<a class="skip-link" href="#main">Skip to main content</a>
-<div class="top-bar"><div class="wrap">IIIF Image API 3.0 &middot; Level 0</div></div>
-<header class="site-header"><div class="wrap">
+    header = f"""<header class="site-header"><div class="wrap">
 <h1>IIIF Level 0 Images</h1>
 <p>Static IIIF Image API 3.0 (level 0) images with Presentation 3.0 manifests for each image, edifice and category.</p>
 <div class="actions">
@@ -349,16 +381,60 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
 {link('collection.json', 'Top-level collection', 'primary-button-alt')}
 </div>
 {link_row('Open every image in', viewer_links(base, 'manifests/all.json', cls=None))}
-</div></header>
-<main id="main" class="wrap">
-{chr(10).join(parts)}
-</main>
-<footer class="site-footer"><div class="wrap">
-Images served as a static IIIF level 0 service. {link('collection.json', 'collection.json')}
-</div></footer>
-</body></html>
+</div></header>"""
+    (out / "index.html").write_text(page_shell("IIIF Level 0 Images", "", header, "\n".join(parts)))
+
+
+def write_item_pages(out: Path, base: str, cats, edifice_files, image_files):
+    """One landing page per image at items/{id}/ with an embedded Clover viewer."""
+    root = "../../"
+    for cat, edifices in cats.items():
+        for key, recs in edifices.items():
+            ef = edifice_files[key]
+            for i, r in enumerate(recs):
+                imf = image_files[r["id"]]
+                rows = "".join(
+                    f"<dt>{esc(label)}</dt><dd>{esc(r['row'][col])}</dd>"
+                    for col, label in FIELDS if r["row"].get(col)
+                ) + f"<dt>Image ID</dt><dd>{esc(r['id'])}</dd><dt>Dimensions</dt><dd>{r['width']} &times; {r['height']} px</dd>"
+                pager = []
+                if i > 0:
+                    pager.append(link(root + item_href(recs[i - 1]), f"Previous: {recs[i - 1]['view']}", "cta-link-leading"))
+                if i < len(recs) - 1:
+                    pager.append(link(root + item_href(recs[i + 1]), f"Next: {recs[i + 1]['view']}", "cta-link-trailing"))
+                siblings = [s for s in recs if s is not r]
+
+                header = f"""<header class="site-header site-header--compact"><div class="wrap">
+<nav class="breadcrumb" aria-label="Breadcrumb"><ol>
+<li>{link(root, 'Home')}</li>
+<li>{link(f'{root}#cat-{slug(cat)}', cat)}</li>
+<li>{link(f'{root}#ed-{key}', r['edifice'])}</li>
+</ol></nav>
+<h1>{esc(r['view'])}</h1>
+<p>{esc(r['edifice'])}</p>
+</div></header>"""
+                body = f"""<div class="item-viewer">
+<clover-viewer iiif-content="{esc(f'{base}/{imf}')}"></clover-viewer>
+</div>
+{'<nav class="pager" aria-label="Images of this edifice">' + ''.join(pager) + '</nav>' if pager else ''}
+<div class="item-details">
+<section aria-labelledby="about"><h2 id="about">About this image</h2><hr class="divider">
+<dl class="metadata">{rows}</dl></section>
+<section aria-labelledby="iiif"><h2 id="iiif">IIIF</h2><hr class="divider">
+{link_row('Image manifest', link(root + imf, 'JSON'), viewer_links(base, imf))}
+{link_row('Edifice manifest', link(root + ef, 'JSON'), viewer_links(base, ef))}
+{link_row('Image service', link(f"{root}iiif/{r['id']}/info.json", 'info.json'), link(f"{root}iiif/{r['id']}/full/max/0/default.jpg", 'Full-size JPEG'))}
+</section>
+</div>
 """
-    (out / "index.html").write_text(page)
+                if siblings:
+                    body += (f"<section aria-labelledby='more'><h2 id='more'>More from this edifice</h2><hr class='divider'>"
+                             f"<ul class='tamu-cards-grid'>{''.join(card(s, root, image_files, base, 'h3') for s in siblings)}</ul></section>")
+                title = f"{r['view']} — {r['edifice']}"
+                dest = out / "items" / r["id"] / "index.html"
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(page_shell(title, root, header, body,
+                                           f'<script src="{CLOVER_JS}"></script>\n'))
 
 
 # ---------------------------------------------------------------- main
@@ -462,6 +538,7 @@ def main():
                collection(f"{base}/collection.json", args.label, cat_collections + [all_m]))
 
     write_index(args.out, base, cats, edifice_files, image_files)
+    write_item_pages(args.out, base, cats, edifice_files, image_files)
     static = Path(__file__).resolve().parent.parent / "static"
     if static.is_dir():
         shutil.copytree(static, args.out / "static")
