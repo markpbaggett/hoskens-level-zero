@@ -1,0 +1,23 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Strathmore Apartments",
+    "address": "11005–11013½ Strathmore Drive, Los Angeles, California 90024",
+    "style": "International Style",
+    "designations": [
+      "Los Angeles Historic-Cultural Monument No. 351 (1988)",
+      "National Register of Historic Places (2013)"
+    ],
+    "source": [
+      "https://en.wikipedia.org/wiki/Strathmore_Apartments",
+      "https://neutra.org/project/strathmore-apartments/"
+    ]
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -118.45083,
+      34.06528
+    ]
+  }
+}

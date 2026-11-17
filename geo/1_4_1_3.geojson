@@ -1,0 +1,14 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Maxime Van Cleef House",
+    "address": "651 Warner Avenue, Los Angeles, California"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -118.43473,
+      34.068953
+    ]
+  }
+}

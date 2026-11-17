@@ -1,0 +1,24 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Village Green (Baldwin Hills Village)",
+    "address": "Los Angeles, California",
+    "completed": "1942",
+    "style": "Modern Movement",
+    "designations": [
+      "National Register of Historic Places No. 93000269",
+      "Los Angeles Historic-Cultural Monument No. 174"
+    ],
+    "source": [
+      "https://en.wikipedia.org/wiki/Village_Green,_Los_Angeles",
+      "https://npgallery.nps.gov/AssetDetail/NRIS/93000269"
+    ]
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -118.360833,
+      34.019722
+    ]
+  }
+}

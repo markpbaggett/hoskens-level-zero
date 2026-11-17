@@ -1,0 +1,17 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Channel Heights",
+    "precision": "approximate",
+    "address": "San Pedro, Los Angeles, California",
+    "completed": "1942–1943",
+    "status": "Demolished by 1981"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -118.3076,
+      33.7549
+    ]
+  }
+}

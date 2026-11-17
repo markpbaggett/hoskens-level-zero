@@ -8,6 +8,8 @@ Inputs:
     source/                 images named "{identifier} ({image id}).tif",
                             e.g. "1_4_1_1_f (SC01_17_01_002).tif"
     metadata.tsv            one row per identifier: LIST, category, STATE, CITY, EDIFICE, VIEW, identifier
+    geo/{group}.geojson     optional places for an edifice (e.g. geo/1_4_1_7.geojson): a GeoJSON
+                            geometry, Feature or FeatureCollection, written as IIIF navPlace
     image-map.tsv           optional overrides: image_id <TAB> identifier, for scans whose
                             filename points at the wrong metadata row
 
@@ -236,9 +238,103 @@ def canvas(base, rec):
     }
 
 
+PRESENTATION_CONTEXT = "http://iiif.io/api/presentation/3/context.json"
+NAVPLACE_CONTEXT = "http://iiif.io/api/extension/navplace/context.json"
+GEOMETRY_TYPES = {"Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon", "GeometryCollection"}
+
+
+def load_places(path: Path, base: str, key: str, label: str):
+    """Read geo/{key}.geojson (geometry, Feature or FeatureCollection) into a list of
+    navPlace-ready Features with ids and labels. Returns [] if there is no file."""
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"{path}: invalid JSON ({e})")
+    kind = data.get("type")
+    if kind == "FeatureCollection":
+        features = data.get("features") or []
+    elif kind == "Feature":
+        features = [data]
+    elif kind in GEOMETRY_TYPES:
+        features = [{"type": "Feature", "properties": {}, "geometry": data}]
+    else:
+        raise SystemExit(f"{path}: expected a GeoJSON geometry, Feature or FeatureCollection, got {kind!r}")
+
+    out = []
+    for i, f in enumerate(features, 1):
+        geom = f.get("geometry") or {}
+        if f.get("type") != "Feature" or geom.get("type") not in GEOMETRY_TYPES:
+            raise SystemExit(f"{path}: feature {i} is not a Feature with a valid geometry")
+        props = dict(f.get("properties") or {})
+        lbl = props.get("label") or props.get("name")
+        if not lbl:
+            props["label"] = lang(label)
+        elif isinstance(lbl, str):
+            props["label"] = lang(lbl)
+        fid = f.get("id")
+        if not (isinstance(fid, str) and fid.startswith(("http://", "https://"))):
+            fid = f"{base}/geo/{key}.geojson#feature-{i}"
+        out.append({"id": fid, "type": "Feature", "properties": props, "geometry": geom})
+    return out
+
+
+def nav_place(fc_id, recs):
+    """navPlace FeatureCollection with every distinct place of the given records."""
+    seen, features = set(), []
+    for r in recs:
+        for f in r.get("places", []):
+            if f["id"] not in seen:
+                seen.add(f["id"])
+                features.append(f)
+    return {"id": fc_id, "type": "FeatureCollection", "features": features} if features else None
+
+
+PLACE_FIELDS = [  # (GeoJSON property, display label) shown as metadata for an edifice's place
+    ("name", "Place name"),
+    ("address", "Address"),
+    ("completed", "Completed"),
+    ("client", "Client"),
+    ("style", "Architectural style"),
+    ("status", "Status"),
+    ("designations", "Designations"),
+]
+
+
+def place_values(rec):
+    """[(label, [plain values], [html values])] for the first place of an edifice."""
+    if not rec.get("places"):
+        return []
+    f = rec["places"][0]
+    props, geom = f["properties"], f["geometry"]
+    out = []
+    for key, label in PLACE_FIELDS:
+        v = props.get(key)
+        if v:
+            vals = [str(x) for x in (v if isinstance(v, list) else [v])]
+            out.append((label, vals, [html.escape(x) for x in vals]))
+    if geom["type"] == "Point":
+        lon, lat = geom["coordinates"][:2]
+        c = f"{lat:.5f}, {lon:.5f}" + (" (approximate)" if props.get("precision") == "approximate" else "")
+        out.append(("Coordinates", [c], [c]))
+    srcs = props.get("source") or []
+    srcs = [srcs] if isinstance(srcs, str) else srcs
+    if srcs:
+        hosts = [urllib.parse.urlparse(u).netloc.removeprefix("www.") for u in srcs]
+        out.append(("Sources", srcs, [f'<a href="{html.escape(u)}">{html.escape(h)}</a>' for u, h in zip(srcs, hosts)]))
+    return out
+
+
+def place_metadata(rec):
+    """IIIF metadata pairs for an edifice's place (HTML only for source links)."""
+    return [{"label": {"en": [label]}, "value": {"none": htmls}} for label, _, htmls in place_values(rec)]
+
+
 def manifest(base, mid, label, recs, metadata=None, summary=None):
+    places = nav_place(f"{mid}#navPlace", recs)
     m = {
-        "@context": "http://iiif.io/api/presentation/3/context.json",
+        "@context": [NAVPLACE_CONTEXT, PRESENTATION_CONTEXT] if places else PRESENTATION_CONTEXT,
         "id": mid,
         "type": "Manifest",
         "label": lang(label),
@@ -247,6 +343,8 @@ def manifest(base, mid, label, recs, metadata=None, summary=None):
         m["summary"] = lang(summary)
     if metadata:
         m["metadata"] = metadata
+    if places:
+        m["navPlace"] = places
     m["thumbnail"] = thumbnail(recs[0])
     m["items"] = [canvas(base, r) for r in recs]
     return m
@@ -383,7 +481,18 @@ def write_index(out: Path, base: str, cats, edifice_files, image_files):
 </div>
 {link_row('Open every image in', viewer_links(base, 'manifests/all.json', cls=None))}
 </div></header>"""
-    (out / "index.html").write_text(page_shell("IIIF Level 0 Images", "", header, "\n".join(parts)))
+    head = ""
+    if any(r.get("places") for eds in cats.values() for rs in eds.values() for r in rs):
+        parts.insert(0, "<section aria-labelledby='map'><h2 id='map'>Map</h2><hr class='divider'>"
+                        f"<div class='item-map'><clover-map iiif-content='{esc(f'{base}/manifests/all.json')}'></clover-map></div></section>")
+        head = f'<script src="{CLOVER_JS}"></script>\n'
+    (out / "index.html").write_text(page_shell("IIIF Level 0 Images", "", header, "\n".join(parts), head))
+
+
+def place_rows(rec):
+    """<dt>/<dd> rows for an edifice's place, one <dd> per value."""
+    return "".join(f"<dt>{esc(label)}</dt>" + "".join(f"<dd>{h}</dd>" for h in htmls)
+                   for label, _, htmls in place_values(rec))
 
 
 def edifice_href(key):
@@ -404,8 +513,12 @@ def write_edifice_pages(out: Path, base: str, cats, edifice_files, image_files):
                 if col not in ("VIEW", "identifier") and first.get(col)
                 and all(r["row"].get(col) == first[col] for r in recs)
             ) + (f"<dt>Group</dt><dd>{esc(key)}</dd>"
-                 f"<dt>Images</dt><dd>{len(recs)}</dd>")
+                 f"<dt>Images</dt><dd>{len(recs)}</dd>") + place_rows(recs[0])
             n = f"{len(recs)} image{'s' * (len(recs) != 1)}"
+            location = (f"<section aria-labelledby='location'><h2 id='location'>Location</h2><hr class='divider'>"
+                        f"<div class='item-map'><clover-map iiif-content='{esc(f'{base}/{ef}')}'></clover-map></div>"
+                        f"{link_row('GeoJSON', link(f'{root}geo/{key}.geojson', 'Download'))}</section>"
+                        if recs[0].get("places") else "")
 
             header = f"""<header class="site-header site-header--compact"><div class="wrap">
 <nav class="breadcrumb" aria-label="Breadcrumb"><ol>
@@ -426,7 +539,7 @@ def write_edifice_pages(out: Path, base: str, cats, edifice_files, image_files):
 {link_row('Category manifest', link(root + cm, 'JSON'), viewer_links(base, cm))}
 </section>
 </div>
-<section aria-labelledby="images"><h2 id="images">Images</h2><hr class="divider">
+{location}<section aria-labelledby="images"><h2 id="images">Images</h2><hr class="divider">
 <ul class="tamu-cards-grid">{''.join(card(r, root, image_files, base, 'h3') for r in recs)}</ul></section>
 """
             dest = out / "edifices" / key / "index.html"
@@ -446,7 +559,7 @@ def write_item_pages(out: Path, base: str, cats, edifice_files, image_files):
                 rows = "".join(
                     f"<dt>{esc(label)}</dt><dd>{esc(r['row'][col])}</dd>"
                     for col, label in FIELDS if r["row"].get(col)
-                ) + f"<dt>Image ID</dt><dd>{esc(r['id'])}</dd><dt>Dimensions</dt><dd>{r['width']} &times; {r['height']} px</dd>"
+                ) + f"<dt>Image ID</dt><dd>{esc(r['id'])}</dd><dt>Dimensions</dt><dd>{r['width']} &times; {r['height']} px</dd>" + place_rows(r)
                 pager = []
                 if i > 0:
                     pager.append(link(root + item_href(recs[i - 1]), f"Previous: {recs[i - 1]['view']}", "cta-link-leading"))
@@ -495,6 +608,7 @@ def main():
     ap.add_argument("--src", default="source", type=Path)
     ap.add_argument("--metadata", default="metadata.tsv", type=Path)
     ap.add_argument("--image-map", default="image-map.tsv", type=Path)
+    ap.add_argument("--geo", default="geo", type=Path, help="folder of optional {edifice group}.geojson files")
     ap.add_argument("--out", default="_site", type=Path)
     ap.add_argument("--label", default="Sample IIIF Manifest", help="label for manifests/all.json and collection.json")
     args = ap.parse_args()
@@ -552,10 +666,26 @@ def main():
     for r in recs:
         cats.setdefault(r["category"], OrderedDict()).setdefault(r["group"], []).append(r)
 
+    # Optional places: geo/{group}.geojson -> navPlace on that edifice's manifests.
+    groups = {key: rs for eds in cats.values() for key, rs in eds.items()}
+    if args.geo.is_dir():
+        for p in sorted(args.geo.glob("*.geojson")):
+            if p.stem not in groups:
+                warn(f"{p}: no edifice group {p.stem!r} has images; ignoring")
+    n_geo = 0
+    for key, rs in groups.items():
+        places = load_places(args.geo / f"{key}.geojson", base, key, rs[0]["edifice"])
+        if places:
+            n_geo += 1
+            write_json(args.out / "geo" / f"{key}.geojson", {"type": "FeatureCollection", "features": places})
+        for r in rs:
+            r["places"] = places
+
     image_files, edifice_files = {}, {}
     for r in recs:
         rel = f"manifests/images/{r['id']}.json"
-        m = manifest(base, f"{base}/{rel}", f"{r['edifice']} — {r['view']}", [r], metadata=metadata_pairs(r))
+        m = manifest(base, f"{base}/{rel}", f"{r['edifice']} — {r['view']}", [r],
+                     metadata=metadata_pairs(r) + place_metadata(r))
         write_json(args.out / rel, m)
         image_files[r["id"]] = rel
 
@@ -564,7 +694,7 @@ def main():
         edifice_manifests = []
         for key, rs in edifices.items():
             rel = f"manifests/edifices/{key}.json"
-            m = manifest(base, f"{base}/{rel}", rs[0]["edifice"], rs, metadata=shared_metadata(rs),
+            m = manifest(base, f"{base}/{rel}", rs[0]["edifice"], rs, metadata=shared_metadata(rs) + place_metadata(rs[0]),
                          summary=f"{len(rs)} image{'s' * (len(rs) != 1)}")
             write_json(args.out / rel, m)
             edifice_files[key] = rel
@@ -596,7 +726,7 @@ def main():
     (args.out / ".nojekyll").touch()
     n_ed = sum(len(e) for e in cats.values())
     print(f"Built {len(recs)} images, {len(recs)} image manifests, {n_ed} edifice manifests, "
-          f"{len(cats)} category manifests into {args.out}/")
+          f"{len(cats)} category manifests ({n_geo} edifices with places) into {args.out}/")
 
 
 if __name__ == "__main__":

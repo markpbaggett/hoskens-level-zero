@@ -1,0 +1,20 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "George Sturges House",
+    "address": "Los Angeles, California",
+    "completed": "1939",
+    "client": "George D. Sturges",
+    "style": "Usonian",
+    "source": [
+      "https://en.wikipedia.org/wiki/George_Sturges_House"
+    ]
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -118.481253,
+      34.066883
+    ]
+  }
+}
